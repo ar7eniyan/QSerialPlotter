@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="icons">
+    <file alias="warning.png">../resources/icons/tango-icon-theme-0.8.90/32x32/status/dialog-warning.png</file>
+  </qresource>
+  <qresource prefix="fonts">
+    <file>../resources/fonts/Rubik.ttf</file>
+  </qresource>
+</RCC>

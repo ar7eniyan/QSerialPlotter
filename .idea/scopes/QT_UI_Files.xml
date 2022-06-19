@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="QT UI Files" pattern="file:ui/*.ui" />
+</component>

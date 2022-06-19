@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="QT Resource Files (QRC)" pattern="file:ui/*.qrc" />
+</component>
