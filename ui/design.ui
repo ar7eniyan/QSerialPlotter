@@ -68,6 +68,9 @@
         <property name="topMargin">
          <number>1</number>
         </property>
+        <property name="verticalSpacing">
+         <number>3</number>
+        </property>
         <item row="0" column="0">
          <widget class="QLabel" name="portStatusLabel">
           <property name="text">
@@ -273,7 +276,6 @@
  </widget>
  <resources>
   <include location="resource.qrc"/>
-  <include location="../../../../.designer/backup/resource.qrc"/>
  </resources>
  <connections/>
 </ui>
