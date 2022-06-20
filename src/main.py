@@ -1,5 +1,7 @@
+import struct
 import sys
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional
 
 from PySide6.QtWidgets import QApplication, QMainWindow
 from serial import Serial, SerialException
@@ -9,9 +11,26 @@ from ui.design import Ui_MainWindow
 
 
 class SerialManager:
+
+    @dataclass
+    class Packet:
+        """
+        Packet class for serial data.
+        Fields are stored in order they go in the packet.
+        """
+        input: float
+        setpoint: float
+        error: float
+        gain: float
+        p_term: float
+        i_term: float
+        d_term: float
+
     serial: Serial
-    port: str | None
+    port: Optional[str]
     baudrate: int
+    PACKET_LENGTH = 29
+    PACKET_TERMINATOR = b"\x0A"
 
     def __init__(self):
         self.serial = Serial()
@@ -37,6 +56,26 @@ class SerialManager:
 
     def connected(self) -> bool:
         return self.serial.isOpen()
+
+    def get_packet(self) -> Optional[Packet]:
+        """
+        Reads a packet from the serial port and parses it into a Packet object.
+        Packet format:
+        +--------------------+--------------------+--------------------+--------------------+
+        |  Input (float32)   | Setpoint (float32) |   Error (float32)  |   Gain (float32)   |
+        +--------------------+--------------------+--------------------+------+-------------+
+        |  P Term (float32)  | I Term (float32)   | D Term (float32)   | 0x0A |
+        +--------------------+--------------------+--------------------+------+
+        0x0A is a packet terminator.
+        Packet length: (4 * 7) + 1 = 29 bytes
+        """
+        data: bytes = self.serial.read_until(self.PACKET_TERMINATOR)
+        # if line is desynced, discard the packet
+        # now line is in sync, the next byte is the beginning of the next packet
+        if len(data) != SerialManager.PACKET_LENGTH:
+            return None
+        data.rstrip(self.PACKET_TERMINATOR)
+        return SerialManager.Packet(*struct.unpack("<7f", data))
 
 
 class MainWindow(QMainWindow):
