@@ -86,7 +86,7 @@ class MainWindow(QMainWindow):
                 self.ui.portErrorLabel.hide()
                 self.ui.portError.hide()
             except SerialException as e:
-                self.ui.portError.setText(f"<pre>Error: {e}</pre>")
+                self.ui.portError.setText(str(e))
                 self.ui.portErrorLabel.show()
                 self.ui.portError.show()
 
