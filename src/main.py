@@ -2,9 +2,11 @@ import struct
 import sys
 from dataclasses import dataclass
 from typing import Optional
+from threading import Event
 import enum
 
 from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtCore import Signal, Slot, QObject, QThread
 from serial import Serial, SerialException
 from serial.tools.list_ports import comports
 
@@ -12,7 +14,7 @@ from ui.design import Ui_MainWindow
 from util import crc16_xmodem
 
 
-class SerialManager:
+class SerialManager(QObject):
     """
     Provides non-blocking access to serial port for parsing telemetry packets.
     """
@@ -45,20 +47,30 @@ class SerialManager:
     baudrate: Optional[int]
     cobs_code: int
     packet: bytearray
+    thread: Optional[QThread]
+    stop_event = Event()
+
+    packet_received = Signal(Packet)
 
     PACKET_LENGTH = 28
     PACKET_TERMINATOR = 0x00
 
     def __init__(self):
+        super().__init__()
         self.serial = Serial(timeout=0)  # non-blocking access
         self.port = None
         self.baudrate = None
+        self.thread = QThread()
+        self.moveToThread(self.thread)
+        self.thread.started.connect(self.worker)
 
     @staticmethod
     def get_ports() -> list[str]:
         return [port.device for port in comports()]
 
-    def connect(self):
+    @Slot()
+    def open(self):
+        self.thread.wait()
         if self.port is None:
             raise SerialException("No port selected")
 
@@ -69,14 +81,27 @@ class SerialManager:
             raise SerialException(f"Could not open serial port {self.port}")
         self.packet = bytearray()
         self.state = self.State.START
+        self.stop_event.clear()
+        self.thread.start()
 
-    def disconnect(self):
-        self.serial.close()
+    @Slot()
+    def close(self):
+        self.stop_event.set()
 
     def connected(self) -> bool:
         return self.serial.isOpen()
 
-    def update(self, c) -> Optional[Packet]:
+    def worker(self):
+        while not self.stop_event.is_set():
+            data = self.serial.read_all()
+            for c in data:
+                packet = self.update(c)
+                if packet is not None:
+                    self.packet_received.emit(packet)
+        self.serial.close()
+        QThread.currentThread().quit()
+
+    def update(self, c: int) -> Optional[Packet]:
         """
         Update packet parser with character `c` and try to parse a Packet object from internal buffer.
         If no complete packet is available, returns None. Raises IOError if the received packet is not valid.
@@ -154,6 +179,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self.serial = SerialManager()
 
         self.ui.scanPortsButton.clicked.connect(self.update_ports_list)
         self.ui.connectButton.clicked.connect(self.toggle_serial)
@@ -163,7 +189,16 @@ class MainWindow(QMainWindow):
         self.ui.portError.hide()
         self.ui.portStatus.setText("Not connected")
 
-        self.serial = SerialManager()
+        self.update_baudrate()
+        self.serial.packet_received.connect(self.on_packet)
+
+    def cleanup(self):
+        if self.serial.connected():
+            self.serial.close()
+
+    @Slot()
+    def on_packet(self, packet: SerialManager):
+        print(packet)
 
     def update_ports_list(self):
         # clear previous error message
@@ -181,14 +216,14 @@ class MainWindow(QMainWindow):
 
     def toggle_serial(self):
         if self.serial.connected():
-            self.serial.disconnect()
+            self.serial.close()
             self.ui.portStatus.setText("Not connected")
             self.ui.connectButton.setText("Connect")
         else:
             self.serial.port = self.ui.selectPortBox.currentText() or None
 
             try:
-                self.serial.connect()
+                self.serial.open()
                 self.ui.portStatus.setText("Connected")
                 self.ui.connectButton.setText("Disconnect")
                 self.ui.portErrorLabel.hide()
@@ -199,11 +234,18 @@ class MainWindow(QMainWindow):
                 self.ui.portError.show()
 
     def update_baudrate(self):
-        self.serial.baudrate = int(self.ui.portBaudrate.text())
+        try:
+            val = int(self.ui.portBaudrate.text())
+        except ValueError:
+            val = None
+        self.serial.baudrate = val
 
 
 app = QApplication(sys.argv)
 window = MainWindow()
 window.show()
 
-sys.exit(app.exec())
+ret_val = app.exec()
+window.cleanup()
+
+sys.exit(ret_val)
