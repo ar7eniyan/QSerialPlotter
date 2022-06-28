@@ -8,10 +8,12 @@ import enum
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtCore import Signal, Slot, QObject, QThread
 from serial import Serial, SerialException
-from serial.tools.list_ports import comports
+import serial.tools.list_ports
 
 from ui.design import Ui_MainWindow
 from util import crc16_xmodem
+
+DEFAULT_BAUDRATE = 9600
 
 
 class SerialManager(QObject):
@@ -66,7 +68,7 @@ class SerialManager(QObject):
 
     @staticmethod
     def get_ports() -> list[str]:
-        return [port.device for port in comports()]
+        return [port.device for port in serial.tools.list_ports.comports()]
 
     @Slot()
     def open(self):
@@ -184,6 +186,7 @@ class MainWindow(QMainWindow):
         self.ui.scanPortsButton.clicked.connect(self.update_ports_list)
         self.ui.connectButton.clicked.connect(self.toggle_serial)
         self.ui.portBaudrate.editingFinished.connect(self.update_baudrate)
+        self.ui.portBaudrate.setText(str(DEFAULT_BAUDRATE))
         self.ui.noPortsFoundWarning.hide()
         self.ui.portErrorLabel.hide()
         self.ui.portError.hide()
