@@ -200,7 +200,7 @@ class MainWindow(QMainWindow):
             self.serial.close()
 
     @Slot()
-    def on_packet(self, packet: SerialManager):
+    def on_packet(self, packet: SerialManager.Packet):
         print(packet)
 
     def update_ports_list(self):
