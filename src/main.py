@@ -198,6 +198,7 @@ class MainWindow(QMainWindow):
     def cleanup(self):
         if self.serial.connected():
             self.serial.close()
+            self.serial.thread.wait()
 
     @Slot()
     def on_packet(self, packet: SerialManager.Packet):
