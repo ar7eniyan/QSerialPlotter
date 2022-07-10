@@ -412,7 +412,14 @@
     </inspection_tool>
     <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
       <scope name="Generated" level="WARNING" enabled="false" />
-      <scope name="Project Files" level="WARNING" enabled="true" />
+      <scope name="Project Files" level="WARNING" enabled="true">
+        <option name="ignoredIdentifiers">
+          <list>
+            <option value="PySide6.QtGui.triggered.connect" />
+            <option value="PySide6.QtWidgets.clicked.connect" />
+          </list>
+        </option>
+      </scope>
     </inspection_tool>
     <inspection_tool class="PyUnusedLocalInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
       <scope name="Generated" level="WEAK WARNING" enabled="false" />

@@ -1,17 +1,19 @@
 import struct
 import sys
-from dataclasses import dataclass
+from collections import namedtuple
 from typing import Optional
 from threading import Event
 import enum
 
+from PySide6.QtCharts import QLineSeries
+from PySide6.QtGui import QBrush, QColor, QPen
 from PySide6.QtWidgets import QApplication, QMainWindow
-from PySide6.QtCore import Signal, Slot, QObject, QThread
+from PySide6.QtCore import Qt, Signal, Slot, QObject, QThread
 from serial import Serial, SerialException
 import serial.tools.list_ports
 
 from ui.design import Ui_MainWindow
-from util import crc16_xmodem
+from util import crc16_xmodem, str_to_color
 
 DEFAULT_BAUDRATE = 9600
 
@@ -29,19 +31,16 @@ class SerialManager(QObject):
         ESC = 1   # next byte is COBS-escaped character
         START = 2  # next byte is start of the packet
 
-    @dataclass
-    class Packet:
-        """
-        Packet class for serial data.
-        Fields are stored in order they go in the packet.
-        """
-        input: float
-        setpoint: float
-        error: float
-        gain: float
-        p_term: float
-        i_term: float
-        d_term: float
+    Packet = namedtuple("Packet", ["input", "setpoint", "error", "gain", "p_term", "i_term", "d_term"])
+    # Fields are stored in order they go in the packet.
+    # Human-readable names:
+    Packet.input.__doc__ = "Input"
+    Packet.setpoint.__doc__ = "Setpoint"
+    Packet.error.__doc__ = "Error"
+    Packet.gain.__doc__ = "Gain"
+    Packet.p_term.__doc__ = "P Term"
+    Packet.i_term.__doc__ = "I Term"
+    Packet.d_term.__doc__ = "D Term"
 
     state: State
     serial: Serial
@@ -192,6 +191,17 @@ class MainWindow(QMainWindow):
         self.ui.portError.hide()
         self.ui.portStatus.setText("Not connected")
 
+        for plotter in (self.ui.topPlotterWidget, self.ui.bottomPlotterWidget):
+            for field in SerialManager.Packet._fields:
+                series = QLineSeries()
+                series.setObjectName(field)  # field name
+                series.setName(getattr(SerialManager.Packet, field).__doc__)  # human-readable field name
+                color = str_to_color(field)
+                pen = QPen(QBrush(color), 2)
+                series.setPen(pen)
+                plotter.add_series(series)
+            plotter.set_timespan(10)
+
         self.update_baudrate()
         self.serial.packet_received.connect(self.on_packet)
 
@@ -203,6 +213,8 @@ class MainWindow(QMainWindow):
     @Slot()
     def on_packet(self, packet: SerialManager.Packet):
         print(packet)
+        self.ui.topPlotterWidget.plot_values(packet._asdict())
+        self.ui.bottomPlotterWidget.plot_values(packet._asdict())
 
     def update_ports_list(self):
         # clear previous error message
@@ -221,12 +233,16 @@ class MainWindow(QMainWindow):
     def toggle_serial(self):
         if self.serial.connected():
             self.serial.close()
+            self.ui.topPlotterWidget.stop_plotting()
+            self.ui.bottomPlotterWidget.stop_plotting()
             self.ui.portStatus.setText("Not connected")
             self.ui.connectButton.setText("Connect")
         else:
             self.serial.port = self.ui.selectPortBox.currentText() or None
 
             try:
+                self.ui.topPlotterWidget.start_plotting()
+                self.ui.bottomPlotterWidget.start_plotting()
                 self.serial.open()
                 self.ui.portStatus.setText("Connected")
                 self.ui.connectButton.setText("Disconnect")
